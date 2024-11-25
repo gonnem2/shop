@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from backend.dp_depens import  get_db
 from models.category import Category
 from schemas.schemas import Category as category_create
+from .auth import get_current_user
 
 router = APIRouter(prefix="/category", tags=['Categories'])
 
@@ -20,7 +21,13 @@ async def get_all_categories(db: Annotated[AsyncSession, Depends(get_db)]):
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_category(db: Annotated[AsyncSession, Depends(get_db)],
-                          create_category: category_create):
+                          create_category: category_create, current_user: Annotated[dict, Depends(get_current_user)]):
+        if not current_user.get("is_admin"):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="You have not permission!"
+            )
+
         await db.execute(insert(Category).values(
             name=create_category.name,
             parent_id=create_category.parent_id,
@@ -36,7 +43,12 @@ async def create_category(db: Annotated[AsyncSession, Depends(get_db)],
 
 
 @router.delete('/delete')
-async def delete_category(db: Annotated[AsyncSession, Depends(get_db)], category_id: int):
+async def delete_category(db: Annotated[AsyncSession, Depends(get_db)], current_user: Annotated[dict, Depends(get_current_user)]):
+    if not current_user.get("is_admin"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="You have not permission!"
+        )
     category = await db.scalar(select(Category).where(Category.id == category_id))
     if category is None:
         raise HTTPException(
@@ -53,7 +65,13 @@ async def delete_category(db: Annotated[AsyncSession, Depends(get_db)], category
 @router.put("/{category_id}",
                status_code=status.HTTP_200_OK,
                response_description="Запись успешно удалена")
-async def delete_category(db: Annotated[AsyncSession, Depends(get_db)], category_id: Annotated[int, Path()]):
+async def delete_category(db: Annotated[AsyncSession, Depends(get_db)], category_id: Annotated[int, Path()], current_user: Annotated[dict, Depends(get_current_user)]):
+    if not current_user.get("is_admin"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="You have not permission!"
+        )
+
     category = await db.scalar(select(Category).where(Category.id == category_id))
 
     if category is None or category.is_active == False:

@@ -12,6 +12,8 @@ from schemas.schemas import Product
 from models.product import Product as product_db
 from models.category import Category
 
+from .auth import get_current_user
+
 
 router = APIRouter(prefix="/products", tags=['Products'])
 
@@ -29,7 +31,13 @@ async def all_products(db: Annotated[AsyncSession, Depends(get_db)]):
     return product
 
 @router.post('/create', status_code=status.HTTP_201_CREATED)
-async def create_product(db: Annotated[AsyncSession, Depends(get_db)], product: Annotated[Product, Body()]):
+async def create_product(db: Annotated[AsyncSession, Depends(get_db)], product: Annotated[Product, Body()], current_user: Annotated[dict, Depends(get_current_user)]):
+    if current_user.get("is_customer"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="You have not permission!"
+        )
+
     product = await db.execute(insert(product_db).values(
         name=product.name,
         description=product.description,
@@ -38,7 +46,8 @@ async def create_product(db: Annotated[AsyncSession, Depends(get_db)], product: 
         stock=product.stock,
         category_id=product.category,
         slug= slugify(product.name),
-        rating=product.rating
+        rating=product.rating,
+        supplier_id=current_user.get('id'),
 
     ))
     await db.commit()
@@ -88,11 +97,22 @@ async def product_detail(product_slug: int, db: Annotated[AsyncSession, Depends(
 async def update_product(
         product_slug: int,
         db: Annotated[AsyncSession, Depends(get_db)],
-        product: Annotated[Product, Body()]
+        product: Annotated[Product, Body()],
+        current_user: Annotated[dict, Depends(get_current_user)]
 ):
+
+    if current_user.get("is_customer"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="You have not permission!"
+        )
     existing_product = await db.scalar(
         select(product_db).where(product_db.id == product_slug)
     )
+    if existing_product.supplier_id != current_user.get("id"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Не ваш товар!"
+        )
     if existing_product is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -119,11 +139,22 @@ async def update_product(
             }
 
 @router.delete('/delete')
-async def delete_product(product_id: int, db: Annotated[AsyncSession, Depends(get_db)]):
-    if await db.scalar(select(product_db).where(product_db.id == product_id)) is None:
+async def delete_product(product_id: int, db: Annotated[AsyncSession, Depends(get_db)], current_user: Annotated[dict, Depends(get_current_user)]):
+    if current_user.get("is_customer"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="You have not permission!"
+        )
+    existing_product = await db.scalar(select(product_db).where(product_db.id == product_id))
+    if existing_product is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="There is no product found"
+        )
+
+    if existing_product.supplier_id != current_user.get("id"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED, detail="Не ваш товар!"
         )
 
     await db.execute(delete(product_db).where(product_db.id == product_id))

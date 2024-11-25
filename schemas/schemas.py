@@ -22,3 +22,7 @@ class CreateUser(BaseModel):
     username: str
     email: str
     password: str
+
+class CreateReview(BaseModel):
+    grade: float
+    comment: str

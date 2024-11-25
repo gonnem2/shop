@@ -90,10 +90,10 @@ async def get_all_reviews(db: Annotated[AsyncSession, Depends(get_db)], product_
     return reviews
 
 @router.delete("/delete/{review_id}")
-async def delete_review(db: Annotated[AsyncSession, Depends(get_db)], review_id: int, current_user: Annotated[dict, Depends(get_current_user)]):
+async def delete_review(db: Annotated[AsyncSession, Depends(get_db)], rating_id: int, current_user: Annotated[dict, Depends(get_current_user)]):
     if current_user.get("is_admin"):
-        await db.execute(update(Review).values(is_active = False))
-        await db.execute(update(Rating).values(is_active = False))
+        await db.execute(update(Review).values(is_active = False).where(Review.rating_id == rating_id))
+        await db.execute(update(Rating).values(is_active = False).where(Rating.id == rating_id))
         await db.commit()
         return {
             "status_code": status.HTTP_200_OK,

@@ -8,10 +8,11 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from backend.dp_depens import get_db
-from schemas.schemas import CreateReview
+from schemas.schemas import CreateReview, Product
 from models.review import Review
 from models.rating import Rating
 from .auth import get_current_user
+from models.product import Product as ProductModel
 
 
 
@@ -20,13 +21,19 @@ router = APIRouter(prefix="/review", tags=['Review'])
 
 @router.post("/create/{product_id}")
 async def create_review(db: Annotated[AsyncSession, Depends(get_db)],
-                        review: CreateReview,
+                        insert_review: CreateReview,
                         user: Annotated[dict, Depends(get_current_user)],
                         product_id: int
                         ):
+    if not user.get("is_customer"):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="You have not permission"
+        )
+
     rating = await db.execute(insert(Rating).values(user_id=user.get("id"),
                                            product_id=product_id,
-                                           grade=review.grade,
+                                           grade=insert_review.grade,
                                            ).returning(Rating.id)
                               )
     rating_id = rating.scalar()
@@ -34,9 +41,24 @@ async def create_review(db: Annotated[AsyncSession, Depends(get_db)],
         user_id = user.get("id"),
         product_id=product_id,
         rating_id=rating_id,
-        comment=review.comment,
+        comment=insert_review.comment,
     ))
     await db.commit()
+    # Получаем все текущие рейтинги продукта
+    ratings = await db.scalars(
+        select(Rating.grade).where(Rating.product_id == product_id)
+    )
+    result = ratings.all()
+
+    result.append(insert_review.grade)
+
+    average_rating = sum(result) / len(result)
+
+    product = await db.execute(update(ProductModel).values(rating=average_rating).where(ProductModel.id == product_id))
+    await db.commit()
+
+
+
     return {
         "status_code": status.HTTP_201_CREATED,
         "detail": "review has been added"

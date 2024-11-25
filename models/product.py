@@ -20,4 +20,4 @@ class Product(Base):
 
     category = relationship("Category", back_populates='product')
     review = relationship("Review", back_populates="product")
-    rating = relationship("Rating", back_populates="product")
+    ratings = relationship("Rating", back_populates="product")

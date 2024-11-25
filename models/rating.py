@@ -14,4 +14,4 @@ class Rating(Base):
     is_active = Column(Boolean, default=True)
 
     review = relationship("Review", uselist=False, back_populates="rating")
-    product = relationship("Product", back_populates="rating")
+    product = relationship("Product", back_populates="ratings")
